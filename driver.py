@@ -1,0 +1,78 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_timestamp, lit, col
+import os
+import argparse
+
+from logger import loggerF
+from hubs_links_sats import hubCreator, linkCreator, satCreator
+
+logger = loggerF(__name__)
+
+spark = SparkSession.builder \
+    .appName("Driver") \
+    .getOrCreate()
+
+def ingestion(iPath, iID, tableName):
+    try:
+        logger.info(f"Initiating ingestion from source ({iID})...")
+        table_name = iPath.split('/')[-1]
+
+        df = spark.read.csv(iPath, header=True, inferSchema=True)
+        df_with_audit = df.withColumn("ingestion_time", current_timestamp()) \
+                          .withColumn("source", lit(table_name))
+
+        df_with_no_null = df_with_audit.filter(col(iID).isNotNull())
+        df_with_null = df_with_audit.filter(col(iID).isNull())
+
+        df_with_no_null.write.format("delta").mode("overwrite").save(f"delta/raw/{tableName}")
+        df_with_null.write.format("delta").mode("overwrite").save(f"delta/raw/errors/{tableName}")
+
+        logger.debug("Data successfully ingested from source...")
+    except Exception as e:
+        logger.error("Ingestion failed...", exc_info=True)
+        raise
+
+def main(sourceFolderPath):
+    customersPath = sourceFolderPath +  "/data_source_folder/customer.csv"
+    productCatalogPath = sourceFolderPath + "/data_source_folder/productCatalog.csv"
+    returnsRefundsPath = sourceFolderPath + "/data_source_folder/returnsRefunds.csv"
+    salesOrderPath = sourceFolderPath + "/data_source_folder/salesOrder.csv"
+
+    ingestion(customersPath, 'CustomerID', "customer")
+    ingestion(productCatalogPath, 'ProductID', "productCatalog")
+    ingestion(returnsRefundsPath, 'ReturnID', "returnsRefunds")
+    ingestion(salesOrderPath, 'OrderID', "salesOrder")
+
+    hubCreator(sourceFolderPath, "customer", "CustomerID")
+    hubCreator(sourceFolderPath, "productCatalog", "ProductID")
+    hubCreator(sourceFolderPath, "salesOrder", "OrderID")
+
+    link1Name = "link-order-customer-product"
+    link1TableIDs = ["CustomerID", "OrderID", "ProductID"]
+
+    link2Name = "link-return-order-product-customer"
+    link2TableIDs = ["ReturnID", "CustomerID", "OrderID", "ProductID"]
+
+    linkCreator(sourceFolderPath, "salesOrder", link1Name, link1TableIDs)
+    linkCreator(sourceFolderPath, "returnsRefunds", link2Name, link2TableIDs)
+
+
+    customerColumns = ["CustomerID","CustomerName","Email","JoinDate"]
+    salesOrderColumns = ["OrderID","CustomerID","ProductID","OrderDate","Quantity"]
+    productCatalogColumns = ["ProductID","ProductName","Category","Price"]
+    returnsRefundsColumns = ["ReturnID","OrderID","ProductID","CustomerID","ReturnDate","RefundAmount","Reason"]
+
+    satCreator(sourceFolderPath, "customer", customerColumns)
+    satCreator(sourceFolderPath, "salesOrder", salesOrderColumns)
+    satCreator(sourceFolderPath, "productCatalog", productCatalogColumns)
+    satCreator(sourceFolderPath, "returnsRefunds", returnsRefundsColumns)
+
+    pass
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("data_source", type=str, help="Path to your data source folder")
+
+    args = parser.parse_args()
+
+    main(args.data_source)

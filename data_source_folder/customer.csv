@@ -1,0 +1,11 @@
+CustomerID,CustomerName,Email,JoinDate
+C001,John Doe,john.doe@example.com,2023-05-10
+C002,Jane Smith,jane.smith@example.com,2023-06-15
+C003,Alice Johnson,alice.j@example.com,2023-07-20
+C004,Michael Brown,michael.b@example.com,2023-08-05
+C005,Sarah Lee,sarah.lee@example.com,2023-08-19
+C006,David Kim,david.kim@example.com,2023-09-01
+C007,Linda Martinez,linda.m@example.com,2023-09-10
+C008,Chris Evans,chris.evans@example.com,2023-10-11
+C009,Emma Watson,emma.w@example.com,2023-10-15
+C010,Robert Taylor,robert.t@example.com,2023-11-05
