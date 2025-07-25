@@ -5,6 +5,7 @@ import argparse
 
 from logger import loggerF
 from hubs_links_sats import hubCreator, linkCreator, satCreator
+from star_schema_scd import createDimTable
 
 logger = loggerF(__name__)
 
@@ -66,6 +67,10 @@ def main(sourceFolderPath):
     satCreator(sourceFolderPath, "salesOrder", salesOrderColumns)
     satCreator(sourceFolderPath, "productCatalog", productCatalogColumns)
     satCreator(sourceFolderPath, "returnsRefunds", returnsRefundsColumns)
+
+    createDimTable(sourceFolderPath, ["CustomerID","CustomerName","Email","JoinDate"], "customer")
+    createDimTable(sourceFolderPath, ["ProductID","ProductName","Category","Price"], "productCatalog")
+
 
     pass
 

@@ -109,6 +109,8 @@ def satCreator(sourcePath, tableName, colsList):
         sat_df = sat_df.dropDuplicates([f"{tableName}_HK", "hash_diff"])
 
         condition = f"target.{tableName}_HK = sourceSat.{tableName}_HK AND target.hash_diff = sourceSat.hash_diff"
+
+        
         if DeltaTable.isDeltaTable(spark, output_path):
             delta_table = DeltaTable.forPath(spark, output_path)
             target_df = delta_table.toDF()
