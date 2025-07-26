@@ -180,11 +180,11 @@ def createFactTable(sourcePath, factName, linkTableName, sat_joins: dict, joinKe
                 }
             ).whenNotMatchedInsertAll().execute()
 
-            logger.info(f"Fact_{factName} merged successfully!")
+            logger.debug(f"Fact_{factName} merged successfully!")
         else:
             logger.info(f"Creating new Delta fact table at {outPath}")
             newDFToAddUpdate.write.format("delta").mode("overwrite").save(outPath)
-            logger.info(f"Fact_{factName} created successfully!")
+            logger.debug(f"Fact_{factName} created successfully!")
 
     except Exception as e:
         logger.error(f"Fact_{factName} creation failed: {e}", exc_info=True)

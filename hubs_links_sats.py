@@ -42,6 +42,7 @@ def hubCreator(sourcePath, tableName, iD):
                 source=hub_df.alias("source"),
                 condition=expr(condition)
             ).whenNotMatchedInsertAll().execute()
+            delta_table.toDF().show()
             logger.debug(f"Hub_{tableName} successfully updated/merged!")
         else:
             hub_df.write.format("delta").mode("overwrite").save(output_path)

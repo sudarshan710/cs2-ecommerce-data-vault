@@ -25,6 +25,7 @@ def mask_pii(df: DataFrame, pii_columns: dict) -> DataFrame:
             else:
                 logger.warning(f"Column '{col_name}' not found in DataFrame; skipping masking for this column.")
 
+        df.show()
         logger.info("Completed PII masking for all specified columns.")
         return df
 

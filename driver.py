@@ -1,7 +1,8 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit, col
 import argparse
-from gdpr import mask_pii, nullify_customer_pii_df
+import os
+from gdpr import mask_pii
 from logger import loggerF
 from hubs_links_sats import hubCreator, linkCreator, satCreator
 from star_schema_scd import createDimTable, createFactTable
@@ -15,11 +16,10 @@ spark = SparkSession.builder \
 def ingestion(iPath, iID, tableName):
     try:
         logger.info(f"Initiating ingestion from source ({iID})...")
-        table_name = iPath.split('/')[-1]
 
         df = spark.read.csv(iPath, header=True, inferSchema=True)
         df_with_audit = df.withColumn("ingestion_time", current_timestamp()) \
-                          .withColumn("source", lit(table_name))
+                          .withColumn("source", lit(tableName))
 
         df_with_no_null = df_with_audit.filter(col(iID).isNotNull())
         df_with_null = df_with_audit.filter(col(iID).isNull())
@@ -28,46 +28,54 @@ def ingestion(iPath, iID, tableName):
         df_with_null.write.format("delta").mode("overwrite").save(f"delta/raw/errors/{tableName}")
 
         logger.debug("Data successfully ingested from source...")
+        logger.info(f"Verifying ingestion for {tableName} ...")
+        df_check = spark.read.format("delta").load(f"delta/raw/{tableName}")
+        df_check.printSchema()
+        df_check.show(5, truncate=False)
     except Exception as e:
         logger.error("Ingestion failed...", exc_info=True)
         raise
 
 def main(sourceFolderPath, spark: SparkSession):
     def optimize_table(path, zorder_cols: list):
-        cols = ", ".join(zorder_cols)
-        query = f"OPTIMIZE delta.`{path}` ZORDER BY ({cols})"
-        spark.sql(query)
+        try:
+            logger.info(f"Optimizing columns: {zorder_cols} ...")
+            cols = ", ".join(zorder_cols)
+            query = f"OPTIMIZE delta.`{path}` ZORDER BY ({cols})"
+            spark.sql(query)
+            logger.debug(f"Optimzation successful for columns {zorder_cols}")
+        except Exception as e:
+            logger.error(f"Optimzation failed for columns: {zorder_cols}", exc_info=True)
+            raise
 
-    customersPath = sourceFolderPath +  "/data_source_folder/customer.csv"
-    productCatalogPath = sourceFolderPath + "/data_source_folder/productCatalog.csv"
-    returnsRefundsPath = sourceFolderPath + "/data_source_folder/returnsRefunds.csv"
-    salesOrderPath = sourceFolderPath + "/data_source_folder/salesOrder.csv"
+    customersPath = os.path.join(sourceFolderPath, "data_source_folder", "customer.csv")
+    productCatalogPath = os.path.join(sourceFolderPath, "data_source_folder", "productCatalog.csv")
+    returnsRefundsPath = os.path.join(sourceFolderPath, "data_source_folder", "returnsRefunds.csv")
+    salesOrderPath = os.path.join(sourceFolderPath, "data_source_folder", "salesOrder.csv")
 
     ingestion(customersPath, 'CustomerID', "customer")
     ingestion(productCatalogPath, 'ProductID', "productCatalog")
     ingestion(returnsRefundsPath, 'ReturnID', "returnsRefunds")
     ingestion(salesOrderPath, 'OrderID', "salesOrder")
-    
     pii_cols = {
         "CustomerName": 'redact',
         "Email": 'hash',
     }
-    df = spark.read.format("delta").load("delta/raw/customer")
+    df = spark.read.format("delta").load("/delta/raw/customer")
     masked_df = mask_pii(df, pii_cols)
-    masked_df.write.format("delta").mode("overwrite").save("delta/raw/customer")
+    masked_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save("/delta/raw/customer")
+    df = spark.read.format("delta").load("/delta/raw/productCatalog")
 
-    # optimize_table("/delta/raw/customer", ["CustomerID"])
-    # optimize_table("/delta/raw/productCatalog", ["ProductID"])
-    # optimize_table("/delta/raw/returnsRefunds", ["ReturnID"])
-    # optimize_table("/delta/raw/salesOrder", ["OrderID"])
+    optimize_table("/delta/raw/customer", ["CustomerID"])
+    optimize_table("/delta/raw/productCatalog", ["ProductID"])
+    optimize_table("/delta/raw/returnsRefunds", ["ReturnID"])
+    optimize_table("/delta/raw/salesOrder", ["OrderID"])
 
     hubCreator(sourceFolderPath, "customer", "CustomerID")
     hubCreator(sourceFolderPath, "productCatalog", "ProductID")
     hubCreator(sourceFolderPath, "salesOrder", "OrderID")
-
-    # # optimize_table("/delta/vault/hub_customer", ["CustomerID"])
-    # # optimize_table("/delta/vault/hub_productCatalog", ["ProductID"])
-    # # optimize_table("/delta/vault/hub_salesOrder", ["OrderID"])
+    df = spark.read.format("delta").load("delta/vault/hub_customer")
+    df.show(5)
 
     link1Name = "link-order-customer-product"
     link1TableIDs = ["CustomerID", "OrderID", "ProductID"]
@@ -77,9 +85,6 @@ def main(sourceFolderPath, spark: SparkSession):
 
     linkCreator(sourceFolderPath, "salesOrder", link1Name, link1TableIDs)
     linkCreator(sourceFolderPath, "returnsRefunds", link2Name, link2TableIDs)
-
-    # # optimize_table(f"/delta/vault/{link1Name}", link1TableIDs)
-    # # optimize_table(f"/delta/vault/{link2Name}", link2TableIDs)
 
     customerColumns = ["CustomerID","CustomerName","Email","JoinDate"]
     salesOrderColumns = ["OrderID","CustomerID","ProductID","OrderDate","Quantity"]
@@ -91,16 +96,8 @@ def main(sourceFolderPath, spark: SparkSession):
     satCreator(sourceFolderPath, "productCatalog", productCatalogColumns)
     satCreator(sourceFolderPath, "returnsRefunds", returnsRefundsColumns)
 
-    # # optimize_table("/delta/vault/sat_customer", ["CustomerID", "JoinDate"])
-    # # optimize_table("/delta/vault/sat_salesOrder", ["OrderID", "OrderDate"])
-    # # optimize_table("/delta/vault/sat_productCatalog", ["ProductID"])
-    # # optimize_table("/delta/vault/sat_returnsRefunds", ["ReturnID", "ReturnDate"])
-
     createDimTable(sourceFolderPath, ["CustomerID","CustomerName","Email","JoinDate"], "customer")
     createDimTable(sourceFolderPath, ["ProductID","ProductName","Category","Price"], "productCatalog")
-
-    # optimize_table("/delta/starSCD/dim_customer", ["CustomerID"])
-    # optimize_table("/delta/starSCD/dim_productCatalog", ["ProductID", "Category"])
 
     createFactTable(sourceFolderPath, "customerOrders", "link-order-customer-product", sat_joins={"salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"}, joinKeys=["OrderID", "CustomerID", "ProductID"], factColumns=["OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"])
     createFactTable(sourceFolderPath, "returnRefunds", "link-return-order-product-customer", sat_joins={"returnsRefunds": "ReturnID", "salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"}, joinKeys=["ReturnID", "OrderID", "CustomerID", "ProductID"], factColumns=["ReturnDate", "RefundAmount", "Reason", "OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"])
