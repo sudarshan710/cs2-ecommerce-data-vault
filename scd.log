@@ -1,8 +1,0 @@
-2025-07-26 00:30:03,227 - scdLogger - INFO - Creating Dim_customer
-2025-07-26 00:30:05,756 - scdLogger - INFO - Total records after join: 14, new flagged records: 14
-2025-07-26 00:30:08,011 - scdLogger - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_customer
-2025-07-26 00:30:14,451 - scdLogger - DEBUG - Dim_customer successfully updated/merged!
-2025-07-26 00:30:14,451 - scdLogger - INFO - Creating Dim_productCatalog
-2025-07-26 00:30:16,251 - scdLogger - INFO - Total records after join: 8, new flagged records: 8
-2025-07-26 00:30:18,415 - scdLogger - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_productCatalog
-2025-07-26 00:30:23,716 - scdLogger - DEBUG - Dim_productCatalog successfully updated/merged!

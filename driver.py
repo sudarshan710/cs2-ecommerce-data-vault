@@ -1,11 +1,10 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit, col
-import os
 import argparse
-
+from gdpr import mask_pii, nullify_customer_pii_df
 from logger import loggerF
 from hubs_links_sats import hubCreator, linkCreator, satCreator
-from star_schema_scd import createDimTable
+from star_schema_scd import createDimTable, createFactTable
 
 logger = loggerF(__name__)
 
@@ -33,7 +32,12 @@ def ingestion(iPath, iID, tableName):
         logger.error("Ingestion failed...", exc_info=True)
         raise
 
-def main(sourceFolderPath):
+def main(sourceFolderPath, spark: SparkSession):
+    def optimize_table(path, zorder_cols: list):
+        cols = ", ".join(zorder_cols)
+        query = f"OPTIMIZE delta.`{path}` ZORDER BY ({cols})"
+        spark.sql(query)
+
     customersPath = sourceFolderPath +  "/data_source_folder/customer.csv"
     productCatalogPath = sourceFolderPath + "/data_source_folder/productCatalog.csv"
     returnsRefundsPath = sourceFolderPath + "/data_source_folder/returnsRefunds.csv"
@@ -43,10 +47,27 @@ def main(sourceFolderPath):
     ingestion(productCatalogPath, 'ProductID', "productCatalog")
     ingestion(returnsRefundsPath, 'ReturnID', "returnsRefunds")
     ingestion(salesOrderPath, 'OrderID', "salesOrder")
+    
+    pii_cols = {
+        "CustomerName": 'redact',
+        "Email": 'hash',
+    }
+    df = spark.read.format("delta").load("delta/raw/customer")
+    masked_df = mask_pii(df, pii_cols)
+    masked_df.write.format("delta").mode("overwrite").save("delta/raw/customer")
+
+    # optimize_table("/delta/raw/customer", ["CustomerID"])
+    # optimize_table("/delta/raw/productCatalog", ["ProductID"])
+    # optimize_table("/delta/raw/returnsRefunds", ["ReturnID"])
+    # optimize_table("/delta/raw/salesOrder", ["OrderID"])
 
     hubCreator(sourceFolderPath, "customer", "CustomerID")
     hubCreator(sourceFolderPath, "productCatalog", "ProductID")
     hubCreator(sourceFolderPath, "salesOrder", "OrderID")
+
+    # # optimize_table("/delta/vault/hub_customer", ["CustomerID"])
+    # # optimize_table("/delta/vault/hub_productCatalog", ["ProductID"])
+    # # optimize_table("/delta/vault/hub_salesOrder", ["OrderID"])
 
     link1Name = "link-order-customer-product"
     link1TableIDs = ["CustomerID", "OrderID", "ProductID"]
@@ -57,6 +78,8 @@ def main(sourceFolderPath):
     linkCreator(sourceFolderPath, "salesOrder", link1Name, link1TableIDs)
     linkCreator(sourceFolderPath, "returnsRefunds", link2Name, link2TableIDs)
 
+    # # optimize_table(f"/delta/vault/{link1Name}", link1TableIDs)
+    # # optimize_table(f"/delta/vault/{link2Name}", link2TableIDs)
 
     customerColumns = ["CustomerID","CustomerName","Email","JoinDate"]
     salesOrderColumns = ["OrderID","CustomerID","ProductID","OrderDate","Quantity"]
@@ -68,9 +91,19 @@ def main(sourceFolderPath):
     satCreator(sourceFolderPath, "productCatalog", productCatalogColumns)
     satCreator(sourceFolderPath, "returnsRefunds", returnsRefundsColumns)
 
+    # # optimize_table("/delta/vault/sat_customer", ["CustomerID", "JoinDate"])
+    # # optimize_table("/delta/vault/sat_salesOrder", ["OrderID", "OrderDate"])
+    # # optimize_table("/delta/vault/sat_productCatalog", ["ProductID"])
+    # # optimize_table("/delta/vault/sat_returnsRefunds", ["ReturnID", "ReturnDate"])
+
     createDimTable(sourceFolderPath, ["CustomerID","CustomerName","Email","JoinDate"], "customer")
     createDimTable(sourceFolderPath, ["ProductID","ProductName","Category","Price"], "productCatalog")
 
+    # optimize_table("/delta/starSCD/dim_customer", ["CustomerID"])
+    # optimize_table("/delta/starSCD/dim_productCatalog", ["ProductID", "Category"])
+
+    createFactTable(sourceFolderPath, "customerOrders", "link-order-customer-product", sat_joins={"salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"}, joinKeys=["OrderID", "CustomerID", "ProductID"], factColumns=["OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"])
+    createFactTable(sourceFolderPath, "returnRefunds", "link-return-order-product-customer", sat_joins={"returnsRefunds": "ReturnID", "salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"}, joinKeys=["ReturnID", "OrderID", "CustomerID", "ProductID"], factColumns=["ReturnDate", "RefundAmount", "Reason", "OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"])
 
     pass
 
@@ -80,4 +113,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.data_source)
+    main(args.data_source, spark)

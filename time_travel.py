@@ -24,9 +24,9 @@ delta_table = DeltaTable.forPath(spark, hub_customer_path)
 history_df = delta_table.history()  
 history_df.show(truncate=True)
 
-v_n = 3
+# v_n = 3
 
-historical_hub_df = read_delta_time_travel(hub_customer_path, version=v_n)
-historical_hub_df.show()
-historical_hub_df = read_delta_time_travel(hub_product_path, version=v_n)
-historical_hub_df.show()
+# historical_hub_df = read_delta_time_travel(hub_customer_path, version=v_n)
+# historical_hub_df.show()
+# historical_hub_df = read_delta_time_travel(hub_product_path, version=v_n)
+# historical_hub_df.show()
