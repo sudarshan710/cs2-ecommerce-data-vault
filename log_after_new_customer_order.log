@@ -1,56 +1,67 @@
 **log when a NEW CUSTOMER and a NEW ORDER was introduced. Only Customers/SalesOrder are merged/updated.**
 
-2025-07-27 13:12:12,083 - __main__ - INFO - Ingesting table: customer from source...
-2025-07-27 13:12:28,823 - __main__ - INFO - Ingestion complete for customer
-2025-07-27 13:12:30,769 - __main__ - INFO - Ingesting table: productCatalog from source...
-2025-07-27 13:12:37,125 - __main__ - INFO - Ingestion complete for productCatalog
-2025-07-27 13:12:38,616 - __main__ - INFO - Ingesting table: returnsRefunds from source...
-2025-07-27 13:12:44,105 - __main__ - INFO - Ingestion complete for returnsRefunds
-2025-07-27 13:12:45,410 - __main__ - INFO - Ingesting table: salesOrder from source...
-2025-07-27 13:12:50,722 - __main__ - INFO - Ingestion complete for salesOrder
-2025-07-27 13:12:52,009 - gdpr - INFO - Initiating PII Masking of Data...
-2025-07-27 13:12:52,020 - gdpr - INFO - Masking column 'CustomerName' using method 'redact'
-2025-07-27 13:12:52,023 - gdpr - INFO - Successfully masked column 'CustomerName'
-2025-07-27 13:12:52,023 - gdpr - INFO - Masking column 'Email' using method 'hash'
-2025-07-27 13:12:52,040 - gdpr - INFO - Successfully masked column 'Email'
-2025-07-27 13:12:52,383 - gdpr - INFO - Completed PII masking for all specified columns.
-2025-07-27 13:12:57,255 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/customer on ['CustomerID'] ...
-2025-07-27 13:13:02,452 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/customer
-2025-07-27 13:13:02,452 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/productCatalog on ['ProductID'] ...
-2025-07-27 13:13:05,080 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/productCatalog
-2025-07-27 13:13:05,080 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/returnsRefunds on ['ReturnID'] ...
-2025-07-27 13:13:07,537 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/returnsRefunds
-2025-07-27 13:13:07,537 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/salesOrder on ['OrderID'] ...
-2025-07-27 13:13:09,946 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/salesOrder
-2025-07-27 13:13:09,946 - hubs_links_sats - INFO - Creating Hub: hub_customer
-2025-07-27 13:13:17,249 - hubs_links_sats - DEBUG - hub_customer successfully updated/merged.
-2025-07-27 13:13:17,249 - hubs_links_sats - INFO - Creating Hub: hub_productCatalog
-2025-07-27 13:13:20,716 - hubs_links_sats - INFO - No changes detected for hub_productCatalog. Skipping merge.
-2025-07-27 13:13:20,716 - hubs_links_sats - INFO - Creating Hub: hub_salesOrder
-2025-07-27 13:13:26,598 - hubs_links_sats - DEBUG - hub_salesOrder successfully updated/merged.
-2025-07-27 13:13:26,598 - hubs_links_sats - INFO - Creating Link: link-order-customer-product
-2025-07-27 13:13:32,221 - hubs_links_sats - DEBUG - Link link-order-customer-product successfully updated/merged.
-2025-07-27 13:13:32,221 - hubs_links_sats - INFO - Creating Link: link-return-order-product-customer
-2025-07-27 13:13:35,830 - hubs_links_sats - INFO - No changes detected for link_link-return-order-product-customer. Skipping merge.
-2025-07-27 13:13:35,830 - hubs_links_sats - INFO - Creating Satellite: sat_customer
-2025-07-27 13:13:41,159 - hubs_links_sats - DEBUG - Satellite sat_customer successfully updated/merged.
-2025-07-27 13:13:41,159 - hubs_links_sats - INFO - Creating Satellite: sat_salesOrder
-2025-07-27 13:13:46,784 - hubs_links_sats - DEBUG - Satellite sat_salesOrder successfully updated/merged.
-2025-07-27 13:13:46,784 - hubs_links_sats - INFO - Creating Satellite: sat_productCatalog
-2025-07-27 13:13:49,817 - hubs_links_sats - INFO - No changes detected for sat_sat_productCatalog. Skipping merge.
-2025-07-27 13:13:49,817 - hubs_links_sats - INFO - Creating Satellite: sat_returnsRefunds
-2025-07-27 13:13:52,647 - hubs_links_sats - INFO - No changes detected for sat_sat_returnsRefunds. Skipping merge.
-2025-07-27 13:13:53,843 - star_schema_scd - INFO - Creating Dim_customer
-2025-07-27 13:13:56,549 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_customer
-2025-07-27 13:14:02,525 - star_schema_scd - DEBUG - Dim_customer successfully updated/merged.
-2025-07-27 13:14:02,525 - star_schema_scd - INFO - Creating Dim_productCatalog
-2025-07-27 13:14:04,828 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_productCatalog
-2025-07-27 13:14:09,558 - star_schema_scd - DEBUG - Dim_productCatalog successfully updated/merged.
-2025-07-27 13:14:09,558 - star_schema_scd - INFO - Creating Fact_customerOrders
-2025-07-27 13:14:15,361 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_customerOrders
-2025-07-27 13:14:21,375 - star_schema_scd - DEBUG - Fact_customerOrders merged successfully.
-2025-07-27 13:14:21,375 - star_schema_scd - INFO - Creating Fact_returnRefunds
-2025-07-27 13:14:27,244 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_returnRefunds
-2025-07-27 13:14:33,330 - star_schema_scd - DEBUG - Fact_returnRefunds merged successfully.
-2025-07-27 13:14:33,371 - pit_table - INFO - Creating PIT-Customer Table...
-2025-07-27 13:14:33,474 - pit_table - DEBUG - PIT-Customer Table successfully created!
+
+2025-07-27 15:03:46,853 - __main__ - INFO - Ingesting table: customer from source...
+2025-07-27 15:04:13,428 - __main__ - INFO - Ingestion complete for customer
+2025-07-27 15:04:18,260 - __main__ - INFO - Ingesting table: productCatalog from source...
+2025-07-27 15:04:30,611 - __main__ - INFO - Ingestion complete for productCatalog
+2025-07-27 15:04:33,605 - __main__ - INFO - Ingesting table: returnsRefunds from source...
+2025-07-27 15:04:45,188 - __main__ - INFO - Ingestion complete for returnsRefunds
+2025-07-27 15:04:47,664 - __main__ - INFO - Ingesting table: salesOrder from source...
+2025-07-27 15:04:58,079 - __main__ - INFO - Ingestion complete for salesOrder
+2025-07-27 15:05:00,469 - gdpr - INFO - Initiating PII Masking of Data...
+2025-07-27 15:05:00,469 - gdpr - INFO - Masking column 'CustomerName' using method 'redact'
+2025-07-27 15:05:00,487 - gdpr - INFO - Successfully masked column 'CustomerName'
+2025-07-27 15:05:00,487 - gdpr - INFO - Masking column 'Email' using method 'hash'
+2025-07-27 15:05:00,517 - gdpr - INFO - Successfully masked column 'Email'
+2025-07-27 15:05:01,492 - gdpr - INFO - Completed PII masking for all specified columns.
+2025-07-27 15:05:06,400 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/customer on ['CustomerID'] ...
+2025-07-27 15:05:13,761 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/customer
+2025-07-27 15:05:13,762 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/productCatalog on ['ProductID'] ...
+2025-07-27 15:05:18,478 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/productCatalog
+2025-07-27 15:05:18,478 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/returnsRefunds on ['ReturnID'] ...
+2025-07-27 15:05:23,383 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/returnsRefunds
+2025-07-27 15:05:23,383 - __main__ - INFO - Optimizing C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/salesOrder on ['OrderID'] ...
+2025-07-27 15:05:28,162 - __main__ - DEBUG - Optimization successful for: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\raw/salesOrder
+2025-07-27 15:05:28,162 - hubs_links_sats - INFO - Creating Hub: hub_customer
+2025-07-27 15:05:43,547 - hubs_links_sats - DEBUG - hub_customer successfully updated/merged.
+2025-07-27 15:05:43,547 - hubs_links_sats - INFO - Creating Hub: hub_productCatalog
+2025-07-27 15:05:55,527 - hubs_links_sats - DEBUG - hub_productCatalog successfully updated/merged.
+2025-07-27 15:05:55,527 - hubs_links_sats - INFO - Creating Hub: hub_salesOrder
+2025-07-27 15:06:06,830 - hubs_links_sats - DEBUG - hub_salesOrder successfully updated/merged.
+2025-07-27 15:06:06,830 - hubs_links_sats - INFO - Creating Link: link-order-customer-product
+2025-07-27 15:06:17,310 - hubs_links_sats - DEBUG - Link link-order-customer-product successfully updated/merged.
+2025-07-27 15:06:17,310 - hubs_links_sats - INFO - Creating Link: link-return-order-product-customer
+2025-07-27 15:06:24,802 - hubs_links_sats - INFO - No changes detected for link_link-return-order-product-customer. Skipping merge.
+2025-07-27 15:06:24,802 - hubs_links_sats - INFO - Creating Satellite: sat_customer
+2025-07-27 15:06:35,788 - hubs_links_sats - DEBUG - Satellite sat_customer successfully updated/merged.
+2025-07-27 15:06:35,788 - hubs_links_sats - INFO - Creating Satellite: sat_salesOrder
+2025-07-27 15:06:46,404 - hubs_links_sats - DEBUG - Satellite sat_salesOrder successfully updated/merged.
+2025-07-27 15:06:46,404 - hubs_links_sats - INFO - Creating Satellite: sat_productCatalog
+2025-07-27 15:06:57,436 - hubs_links_sats - DEBUG - Satellite sat_productCatalog successfully updated/merged.
+2025-07-27 15:06:57,436 - hubs_links_sats - INFO - Creating Satellite: sat_returnsRefunds
+2025-07-27 15:07:03,188 - hubs_links_sats - INFO - No changes detected for sat_sat_returnsRefunds. Skipping merge.
+2025-07-27 15:07:05,287 - star_schema_scd - INFO - Creating Dim_customer
+2025-07-27 15:07:10,362 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_customer
+2025-07-27 15:07:22,954 - star_schema_scd - DEBUG - Dim_customer successfully updated/merged.
+2025-07-27 15:07:22,954 - star_schema_scd - INFO - Creating Dim_productCatalog
+2025-07-27 15:07:26,917 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_productCatalog
+2025-07-27 15:07:36,573 - star_schema_scd - DEBUG - Dim_productCatalog successfully updated/merged.
+2025-07-27 15:07:36,573 - star_schema_scd - INFO - Creating Fact_customerOrders
+2025-07-27 15:07:46,384 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_customerOrders
+2025-07-27 15:07:57,952 - star_schema_scd - DEBUG - Fact_customerOrders merged successfully.
+2025-07-27 15:07:57,952 - star_schema_scd - INFO - Creating Fact_returnRefunds
+2025-07-27 15:08:08,436 - star_schema_scd - INFO - Merging into existing Delta table at C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_returnRefunds
+2025-07-27 15:08:21,588 - star_schema_scd - DEBUG - Fact_returnRefunds merged successfully.
+2025-07-27 15:08:21,678 - pit_table - INFO - Creating PIT-Customer Table...
+2025-07-27 15:08:21,919 - pit_table - DEBUG - PIT-Customer Table successfully created!
+2025-07-27 15:08:31,145 - schema_views - INFO - Create Schema Tables for Database...
+2025-07-27 15:08:31,258 - schema_views - INFO - Registering dimension table: starSchema.dim_customer from path: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_customer
+2025-07-27 15:08:39,653 - schema_views - DEBUG - Successfully registered dimension table: starSchema.dim_customer
+2025-07-27 15:08:39,653 - schema_views - INFO - Registering dimension table: starSchema.dim_productCatalog from path: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\dim_productCatalog
+2025-07-27 15:08:47,719 - schema_views - DEBUG - Successfully registered dimension table: starSchema.dim_productCatalog
+2025-07-27 15:08:47,719 - schema_views - INFO - Registering fact table: starSchema.fact_customerOrders from path: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_customerOrders
+2025-07-27 15:08:55,332 - schema_views - DEBUG - Successfully registered fact table: starSchema.fact_customerOrders
+2025-07-27 15:08:55,332 - schema_views - INFO - Registering fact table: starSchema.fact_returnRefunds from path: C:\Program Files\sudarshan\cs_ecommerce_data_vault\delta\starSCD\fact_returnRefunds
+2025-07-27 15:09:02,946 - schema_views - DEBUG - Successfully registered fact table: starSchema.fact_returnRefunds
+2025-07-27 15:09:02,946 - schema_views - INFO - Schema registration successful for database: starSchema

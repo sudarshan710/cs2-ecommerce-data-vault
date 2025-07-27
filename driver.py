@@ -7,6 +7,7 @@ from logger import loggerF
 from hubs_links_sats import hubCreator, linkCreator, satCreator
 from star_schema_scd import createDimTable, createFactTable
 from pit_table import customerPITTable
+from schema_views import createSchemaView
 
 logger = loggerF(__name__)
 
@@ -38,7 +39,7 @@ def ingestion(iPath, iID, tableName, rawPath):
         raise
 
 
-def main(sourceFolderPath, spark: SparkSession):
+def main(sourceFolderPath, steps, spark: SparkSession):
     rawPath = os.path.join(sourceFolderPath, "delta", "raw")
     vaultPath = os.path.join(sourceFolderPath, "delta", "vault")
     starPath = os.path.join(sourceFolderPath, "delta", "starSCD")
@@ -55,76 +56,84 @@ def main(sourceFolderPath, spark: SparkSession):
             logger.error(f"Optimization failed for: {path}", exc_info=True)
             raise
 
-    customersPath = os.path.join(sourceFolderPath, "data_source_folder", "customer.csv")
-    productCatalogPath = os.path.join(sourceFolderPath, "data_source_folder", "productCatalog.csv")
-    returnsRefundsPath = os.path.join(sourceFolderPath, "data_source_folder", "returnsRefunds.csv")
-    salesOrderPath = os.path.join(sourceFolderPath, "data_source_folder", "salesOrder.csv")
+    if "ingest" in steps:
+        customersPath = os.path.join(sourceFolderPath, "data_source_folder", "customer.csv")
+        productCatalogPath = os.path.join(sourceFolderPath, "data_source_folder", "productCatalog.csv")
+        returnsRefundsPath = os.path.join(sourceFolderPath, "data_source_folder", "returnsRefunds.csv")
+        salesOrderPath = os.path.join(sourceFolderPath, "data_source_folder", "salesOrder.csv")
 
-    ingestion(customersPath, 'CustomerID', "customer", rawPath)
-    ingestion(productCatalogPath, 'ProductID', "productCatalog", rawPath)
-    ingestion(returnsRefundsPath, 'ReturnID', "returnsRefunds", rawPath)
-    ingestion(salesOrderPath, 'OrderID', "salesOrder", rawPath)
+        ingestion(customersPath, 'CustomerID', "customer", rawPath)
+        ingestion(productCatalogPath, 'ProductID', "productCatalog", rawPath)
+        ingestion(returnsRefundsPath, 'ReturnID', "returnsRefunds", rawPath)
+        ingestion(salesOrderPath, 'OrderID', "salesOrder", rawPath)
 
-    pii_cols = {
-        "CustomerName": 'redact',
-        "Email": 'hash',
-    }
+        pii_cols = {
+            "CustomerName": 'redact',
+            "Email": 'hash',
+        }
 
-    customer_df = spark.read.format("delta").load(f"{rawPath}/customer")
-    masked_customer_df = mask_pii(customer_df, pii_cols)
-    masked_customer_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(f"{rawPath}/customer")
+        customer_df = spark.read.format("delta").load(f"{rawPath}/customer")
+        masked_customer_df = mask_pii(customer_df, pii_cols)
+        masked_customer_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(f"{rawPath}/customer")
 
-    optimize_table(f"{rawPath}/customer", ["CustomerID"])
-    optimize_table(f"{rawPath}/productCatalog", ["ProductID"])
-    optimize_table(f"{rawPath}/returnsRefunds", ["ReturnID"])
-    optimize_table(f"{rawPath}/salesOrder", ["OrderID"])
+        optimize_table(f"{rawPath}/customer", ["CustomerID"])
+        optimize_table(f"{rawPath}/productCatalog", ["ProductID"])
+        optimize_table(f"{rawPath}/returnsRefunds", ["ReturnID"])
+        optimize_table(f"{rawPath}/salesOrder", ["OrderID"])
 
-    hubCreator(rawPath, vaultPath, "customer", "CustomerID")
-    hubCreator(rawPath, vaultPath, "productCatalog", "ProductID")   
-    hubCreator(rawPath, vaultPath, "salesOrder", "OrderID")
+    if "vault" in steps:
+        hubCreator(rawPath, vaultPath, "customer", "CustomerID")
+        hubCreator(rawPath, vaultPath, "productCatalog", "ProductID")   
+        hubCreator(rawPath, vaultPath, "salesOrder", "OrderID")
 
-    linkCreator(rawPath, vaultPath, "salesOrder", "link-order-customer-product", ["CustomerID", "OrderID", "ProductID"])
-    linkCreator(rawPath, vaultPath, "returnsRefunds", "link-return-order-product-customer", ["ReturnID", "CustomerID", "OrderID", "ProductID"])
+        linkCreator(rawPath, vaultPath, "salesOrder", "link-order-customer-product", ["CustomerID", "OrderID", "ProductID"])
+        linkCreator(rawPath, vaultPath, "returnsRefunds", "link-return-order-product-customer", ["ReturnID", "CustomerID", "OrderID", "ProductID"])
 
-    satCreator(rawPath, vaultPath, "customer", ["CustomerID", "CustomerName", "Email", "JoinDate"])
-    satCreator(rawPath, vaultPath, "salesOrder", ["OrderID", "CustomerID", "ProductID", "OrderDate", "Quantity"])
-    satCreator(rawPath, vaultPath, "productCatalog", ["ProductID", "ProductName", "Category", "Price"])
-    satCreator(rawPath, vaultPath, "returnsRefunds", ["ReturnID", "OrderID", "ProductID", "CustomerID", "ReturnDate", "RefundAmount", "Reason"])
+        satCreator(rawPath, vaultPath, "customer", ["CustomerID", "CustomerName", "Email", "JoinDate"])
+        satCreator(rawPath, vaultPath, "salesOrder", ["OrderID", "CustomerID", "ProductID", "OrderDate", "Quantity"])
+        satCreator(rawPath, vaultPath, "productCatalog", ["ProductID", "ProductName", "Category", "Price"])
+        satCreator(rawPath, vaultPath, "returnsRefunds", ["ReturnID", "OrderID", "ProductID", "CustomerID", "ReturnDate", "RefundAmount", "Reason"])
 
-    sat_df = spark.read.format("delta").load(f"{vaultPath}/sat_customer")
-    sat_df.show(5)
+        sat_df = spark.read.format("delta").load(f"{vaultPath}/sat_customer")
+        sat_df.show(5)
 
-    createDimTable(vaultPath, starPath, ["CustomerID", "CustomerName", "Email", "JoinDate"], "customer")
-    createDimTable(vaultPath, starPath, ["ProductID", "ProductName", "Category", "Price"], "productCatalog")
+    if "star" in steps:
+        createDimTable(vaultPath, starPath, ["CustomerID", "CustomerName", "Email", "JoinDate"], "customer")
+        createDimTable(vaultPath, starPath, ["ProductID", "ProductName", "Category", "Price"], "productCatalog")
 
-    createFactTable(
-        vaultPath, starPath,
-        "customerOrders",
-        "link-order-customer-product",
-        sat_joins={"salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"},
-        joinKeys=["OrderID", "CustomerID", "ProductID"],
-        factColumns=["OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"]
-    )
+        createFactTable(
+            vaultPath, starPath,
+            "customerOrders",
+            "link-order-customer-product",
+            sat_joins={"salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"},
+            joinKeys=["OrderID", "CustomerID", "ProductID"],
+            factColumns=["OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"]
+        )
 
-    createFactTable(
-        vaultPath, starPath,
-        "returnRefunds",
-        "link-return-order-product-customer",
-        sat_joins={"returnsRefunds": "ReturnID", "salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"},
-        joinKeys=["ReturnID", "OrderID", "CustomerID", "ProductID"],
-        factColumns=["ReturnDate", "RefundAmount", "Reason", "OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"]
-    )
+        createFactTable(
+            vaultPath, starPath,
+            "returnRefunds",
+            "link-return-order-product-customer",
+            sat_joins={"returnsRefunds": "ReturnID", "salesOrder": "OrderID", "customer": "CustomerID", "productCatalog": "ProductID"},
+            joinKeys=["ReturnID", "OrderID", "CustomerID", "ProductID"],
+            factColumns=["ReturnDate", "RefundAmount", "Reason", "OrderDate", "Quantity", "CustomerName", "Email", "Category", "Price"]
+        )
 
-    dates = [("2025-07-29",)]
-    refDates = spark.createDataFrame(dates, ["refDate"]).withColumn("refDate", to_timestamp("refDate"))
+        dates = [("2025-07-29",)]
+        refDates = spark.createDataFrame(dates, ["refDate"]).withColumn("refDate", to_timestamp("refDate"))
 
-    pitCustomer = customerPITTable(vaultPath, refDates)
-    pitCustomer.show()
+        pitCustomer = customerPITTable(vaultPath, refDates)
+        pitCustomer.show()
+
+        createSchemaView(starPath, "starSchema", ["customer", "productCatalog"], ["customerOrders", "returnRefunds"])
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_source", type=str, help="Path to your data source folder")
+    parser.add_argument("--step", type=str, nargs="+", choices=["ingest", "vault", "star"], default=["ingest", "vault", "star"],
+                        help="Which steps to run: ingest, vault, star (all by default)")
 
     args = parser.parse_args()
 
-    main(args.data_source, spark)
+    main(args.data_source, args.step, spark)
