@@ -1,8 +1,8 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit, concat_ws, sha2, col, expr
+from delta.tables import DeltaTable
 import os
 from logger import loggerF
-from delta.tables import DeltaTable
 
 logger = loggerF(__name__)
 
@@ -11,22 +11,20 @@ spark = SparkSession.builder \
     .config("spark.hadoop.hadoop.security.access.control.only.use.native", "false") \
     .getOrCreate()
 
-def hubCreator(sourcePath, tableName, iD):
-    try:
-        logger.info(f"Creating Hub_{tableName}...")
 
-        input_path = os.path.join(sourcePath, "delta", "raw", tableName)
-        print(input_path)
-        output_path = os.path.join(sourcePath, "delta", "vault", f"hub_{tableName}")
+def hubCreator(rawPath, vaultPath, tableName, businessKey):
+    try:
+        logger.info(f"Creating Hub: hub_{tableName}")
+
+        input_path = os.path.join(rawPath, tableName)
+        output_path = os.path.join(vaultPath, f"hub_{tableName}")
 
         raw_df = spark.read.format("delta").load(input_path)
 
-        hub_df = raw_df \
-                  .select(iD) \
-                  .dropDuplicates([iD]) \
-                  .withColumn(f"{tableName}_HK", sha2(concat_ws("||", col(iD).cast("string")), 256)) \
-                  .withColumn("load_time", current_timestamp())
-        
+        hub_df = raw_df.select(businessKey).dropDuplicates() \
+            .withColumn(f"{tableName}_HK", sha2(concat_ws("||", col(businessKey).cast("string")), 256)) \
+            .withColumn("load_time", current_timestamp())
+
         condition = f"target.{tableName}_HK = source.{tableName}_HK"
 
         if DeltaTable.isDeltaTable(spark, output_path):
@@ -36,36 +34,37 @@ def hubCreator(sourcePath, tableName, iD):
             same_keys = hub_df.select(f"{tableName}_HK").subtract(target_df.select(f"{tableName}_HK")).isEmpty()
 
             if same_count and same_keys:
-                logger.info(f"No changes detected for Hub_{tableName}. Skipping merge.")
+                logger.info(f"No changes detected for hub_{tableName}. Skipping merge.")
                 return
+
             delta_table.alias("target").merge(
                 source=hub_df.alias("source"),
                 condition=expr(condition)
             ).whenNotMatchedInsertAll().execute()
-            delta_table.toDF().show()
-            logger.debug(f"Hub_{tableName} successfully updated/merged!")
+
+            logger.debug(f"hub_{tableName} successfully updated/merged.")
         else:
             hub_df.write.format("delta").mode("overwrite").save(output_path)
-            logger.debug(f"Hub_{tableName} successfully created!")
+            logger.debug(f"hub_{tableName} successfully created.")
     except Exception as e:
-        logger.error(f"Hub {tableName} creating failed...", exc_info=True)
+        logger.error(f"Hub creation failed for {tableName}.", exc_info=True)
         raise
 
 
-def linkCreator(sourcePath, tableName, linkName, idsList):
+def linkCreator(rawPath, vaultPath, tableName, linkName, idsList):
     try:
-        logger.info(f"Creating Link-{tableName}...")
+        logger.info(f"Creating Link: {linkName}")
 
-        input_path = os.path.join(sourcePath, "delta", "raw", tableName)
-        output_path = os.path.join(sourcePath, "delta", "vault", linkName)
+        input_path = os.path.join(rawPath, tableName)
+        output_path = os.path.join(vaultPath, linkName)
 
         raw_df = spark.read.format("delta").load(input_path)
 
         link_df = raw_df.select(*idsList).dropDuplicates() \
-                        .withColumn(linkName+"_HK", sha2(concat_ws("||", *[col(c).cast("string") for c in idsList]), 256)) \
-                        .withColumn("load_date", current_timestamp()) \
-                        .withColumn("source", lit(f"{tableName}"))
-        
+            .withColumn(f"{linkName}_HK", sha2(concat_ws("||", *[col(c).cast("string") for c in idsList]), 256)) \
+            .withColumn("load_date", current_timestamp()) \
+            .withColumn("source", lit(tableName))
+
         condition = f"target.`{linkName}_HK` = sourceLink.`{linkName}_HK`"
 
         if DeltaTable.isDeltaTable(spark, output_path):
@@ -77,25 +76,28 @@ def linkCreator(sourcePath, tableName, linkName, idsList):
             if same_count and same_keys:
                 logger.info(f"No changes detected for link_{linkName}. Skipping merge.")
                 return
+
             delta_table.alias("target").merge(
                 source=link_df.alias("sourceLink"),
                 condition=expr(condition)
             ).whenNotMatchedInsertAll().execute()
-            logger.debug(f"Link {linkName} successfully updated/merged!")
+
+            logger.debug(f"Link {linkName} successfully updated/merged.")
         else:
             link_df.write.format("delta").mode("overwrite").save(output_path)
-            logger.debug(f"Link {linkName} successfully created!")
-    except Exception as e: 
-        logger.error(f"Link {linkName} creating failed...", exc_info=True)
+            logger.debug(f"Link {linkName} successfully created.")
+    except Exception as e:
+        logger.error(f"Link creation failed for {linkName}.", exc_info=True)
         raise
 
-def satCreator(sourcePath, tableName, colsList):
-    try:
-        satName = "sat_" + tableName
-        logger.info(f"Creating Satellite {tableName}...")
 
-        input_path = os.path.join(sourcePath, "delta", "raw", tableName)
-        output_path = os.path.join(sourcePath, "delta", "vault", satName)
+def satCreator(rawPath, vaultPath,tableName, colsList):
+    try:
+        satName = f"sat_{tableName}"
+        logger.info(f"Creating Satellite: {satName}")
+
+        input_path = os.path.join(rawPath, tableName)
+        output_path = os.path.join(vaultPath, satName)
 
         raw_df = spark.read.format("delta").load(input_path)
 
@@ -105,13 +107,11 @@ def satCreator(sourcePath, tableName, colsList):
         sat_df = raw_df.select(*colsList) \
             .withColumn(f"{tableName}_HK", sha2(concat_ws("||", col(business_key).cast("string")), 256)) \
             .withColumn("hash_diff", sha2(concat_ws("||", *[col(c).cast("string") for c in desc_cols]), 256)) \
-            .withColumn("load_date", current_timestamp())
-        
-        sat_df = sat_df.dropDuplicates([f"{tableName}_HK", "hash_diff"])
+            .withColumn("load_date", current_timestamp()) \
+            .dropDuplicates([f"{tableName}_HK", "hash_diff"])
 
         condition = f"target.{tableName}_HK = sourceSat.{tableName}_HK AND target.hash_diff = sourceSat.hash_diff"
 
-        
         if DeltaTable.isDeltaTable(spark, output_path):
             delta_table = DeltaTable.forPath(spark, output_path)
             target_df = delta_table.toDF()
@@ -119,16 +119,18 @@ def satCreator(sourcePath, tableName, colsList):
             same_keys = sat_df.select(f"{tableName}_HK").subtract(target_df.select(f"{tableName}_HK")).isEmpty()
 
             if same_count and same_keys:
-                logger.info(f"No changes detected for Sat_{satName}. Skipping merge.")
+                logger.info(f"No changes detected for sat_{satName}. Skipping merge.")
                 return
+
             delta_table.alias("target").merge(
                 source=sat_df.alias("sourceSat"),
                 condition=expr(condition)
             ).whenNotMatchedInsertAll().execute()
-            logger.debug(f"Satellite {satName} successfully updated/merged!")
-        else:        
-            sat_df.write.format("delta").mode("overwrite").save(output_path)    
-            logger.debug(f"Satellite {satName} successfully created!")
+
+            logger.debug(f"Satellite {satName} successfully updated/merged.")
+        else:
+            sat_df.write.format("delta").mode("overwrite").save(output_path)
+            logger.debug(f"Satellite {satName} successfully created.")
     except Exception as e:
-        logger.error(f"Satellite {satName} creating failed...", exc_info=True)
+        logger.error(f"Satellite creation failed for {satName}.", exc_info=True)
         raise
